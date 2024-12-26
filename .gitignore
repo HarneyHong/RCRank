@@ -1,0 +1,12 @@
+__pycache__/
+**/__pycache__/
+.vscode/
+*.pt
+*.pth
+*.pickle
+*.pkl
+.conda/
+bert-base-uncased/
+*.csv
+*.txt
+*.zip
