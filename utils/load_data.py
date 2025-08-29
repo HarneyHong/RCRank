@@ -20,11 +20,17 @@ def load_dataset_valid(data_path, batch_size = 8, device="cpu"):
     path = data_path
     
     df = pd.read_csv(path)
+    if path == "data/slow_sql_data_gen.csv":
+        df = df[df['error'].isna()]
     
     encoding = Encoding(None, {'NA': 0})
 
-    df["log_all"] = df["log_all"].apply(json_phrase)
-    df["timeseries"] = df["timeseries"].apply(json_phrase)
+    if path != "data/slow_sql_data_gen.csv":
+        df["log_all"] = df["log_all"].apply(json_phrase)
+        df["timeseries"] = df["timeseries"].apply(json_phrase)
+    else:
+        df["log_all"] = df["internal_metrics"].apply(json_phrase)
+        df["timeseries"] = df["external_metrics"].apply(json_phrase)
 
     pe = PlanEncoder(df=df,encoding=encoding)
     df = pe.df
@@ -39,11 +45,11 @@ def load_dataset_valid(data_path, batch_size = 8, device="cpu"):
     df_test = df.iloc[train_length:train_length+test_length]
     df_valid = df.iloc[-valid_length:]
 
-
-    train_dataset = Tensor_Opt_modal_dataset(df_train[["query", "json_plan_tensor", "log_all", "timeseries", "multilabel", "opt_label_rate", "duration", "index_x"]], device=device, encoding=encoding, tokenizer=tokenizer)
-    test_dataset = Tensor_Opt_modal_dataset(df_test[["query", "json_plan_tensor", "log_all", "timeseries", "multilabel", "opt_label_rate", "duration", "index_x"]], device=device, encoding=encoding, tokenizer=tokenizer, train_dataset=train_dataset)
+    # 只保留multilabel，移除opt_label_rate
+    train_dataset = Tensor_Opt_modal_dataset(df_train[["query", "json_plan_tensor", "log_all", "timeseries", "multilabel", "duration"]], device=device, encoding=encoding, tokenizer=tokenizer)
+    test_dataset = Tensor_Opt_modal_dataset(df_test[["query", "json_plan_tensor", "log_all", "timeseries", "multilabel", "duration"]], device=device, encoding=encoding, tokenizer=tokenizer, train_dataset=train_dataset)
     
-    valid_dataset = Tensor_Opt_modal_dataset(df_valid[["query", "json_plan_tensor", "log_all", "timeseries", "multilabel", "opt_label_rate", "duration", "index_x"]], device=device, encoding=encoding, tokenizer=tokenizer, train_dataset=train_dataset)
+    valid_dataset = Tensor_Opt_modal_dataset(df_valid[["query", "json_plan_tensor", "log_all", "timeseries", "multilabel", "duration"]], device=device, encoding=encoding, tokenizer=tokenizer, train_dataset=train_dataset)
 
     print("load dataset over")
         
@@ -60,7 +66,7 @@ def padding_plan(plan, max_len):
     return torch.cat([plan, padding], dim=1)
 
 def collate_fn(batch):
-    querys, plans, logs, timeseries, multilabels, opt_labels, durations, ori_opt_labels = [], {}, [], [], [], [], [], []
+    querys, plans, logs, timeseries, multilabels, durations = [], {}, [], [], [], []
     plans_x, plans_attn_bias, plans_rel_pos, plans_heights = [], [], [], []
     max_len_plan = 0
     for sample in batch:
@@ -75,9 +81,7 @@ def collate_fn(batch):
         logs.append(sample["log"])
         timeseries.append(sample["timeseries"])
         multilabels.append(sample["multilabel"])
-        opt_labels.append(sample["opt_label"])
         durations.append(sample["duration"])
-        ori_opt_labels.append(sample["ori_opt_label"])
     
     max_len_plan = 500
     for i in range(len(plans_x)):
@@ -92,8 +96,6 @@ def collate_fn(batch):
         "log": torch.stack(logs),
         "timeseries": torch.stack(timeseries),
         "multilabel": torch.stack(multilabels),
-        "opt_label": torch.stack(opt_labels),
-        "duration": torch.tensor(durations),
-        "ori_opt_label": torch.stack(ori_opt_labels)
+        "duration": torch.tensor(durations)
     }
 

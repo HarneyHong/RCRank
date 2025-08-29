@@ -33,8 +33,8 @@ class Prediction(nn.Module):
 
         
 class FeatureEmbed(nn.Module):
-    def __init__(self, embed_size=32, tables = 1500, types=1500, joins = 1500, columns= 3000, \
-                 ops=4, use_sample = True, use_hist = True, bin_number = 50):
+    def __init__(self, embed_size=32, tables = 5000, types=4000, joins = 4000, columns= 8000, \
+                 ops=10, use_sample = True, use_hist = True, bin_number = 50):
         super(FeatureEmbed, self).__init__()
         
         self.use_sample = use_sample
@@ -71,7 +71,7 @@ class FeatureEmbed(nn.Module):
     
     def forward(self, feature):
         
-        typeId, joinId, filtersId, filtersMask, table_sample, cost = torch.split(feature,(1,1,40,20,1001, 4), dim = -1)
+        typeId, joinId, filtersId, filtersMask, table_sample, cost = torch.split(feature,(1,1,60,30,1001, 4), dim = -1)
         
         typeEmb = self.getType(typeId)
         joinEmb = self.getJoin(joinId)
@@ -122,7 +122,7 @@ class FeatureEmbed(nn.Module):
         
     def getFilter(self, filtersId, filtersMask):
         ## get Filters, then apply mask
-        filterExpand = filtersId.view(-1,2,20).transpose(1,2)
+        filterExpand = filtersId.view(-1,2,30).transpose(1,2)
         colsId = filterExpand[:,:,0].long()
         opsId = filterExpand[:,:,1].long()
         
@@ -151,7 +151,7 @@ class QueryFormer(nn.Module):
     def __init__(self, emb_size = 32 ,ffn_dim = 32, head_size = 8, \
                  dropout = 0.1, attention_dropout_rate = 0.1, n_layers = 8, \
                  use_sample = True, use_hist = True, bin_number = 50, \
-                 pred_hid = 256, input_size = 1067
+                 pred_hid = 256, input_size = 1097
                 ):
         
         super(QueryFormer,self).__init__()
@@ -235,7 +235,7 @@ class QueryFormerBert(nn.Module):
     def __init__(self, emb_size = 32 ,ffn_dim = 32, head_size = 8, \
                  dropout = 0.1, attention_dropout_rate = 0.1, n_layers = 8, \
                  use_sample = True, use_hist = True, bin_number = 50, \
-                 pred_hid = 256, input_size = 1067
+                 pred_hid = 256, input_size = 1097
                 ):
         
         super(QueryFormerBert,self).__init__()

@@ -8,7 +8,7 @@ class TrainConfig:
     model_name = None
     lr = 3e-4
     use_margin_loss = False
-    use_label_loss = False
+    use_label_loss = True
     use_weight_loss = False
     use_threshold_loss = False
     margin_loss_type = "MarginLoss"

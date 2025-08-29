@@ -21,14 +21,12 @@ class Tensor_Opt_modal_dataset(data.Dataset):
         if train_dataset is None:
             logs = []
             timeseries = []
-            opt_labels = []
             querys = []
             for i, samples in enumerate(samples_list):
                 querys.append(samples[0])
                 
                 logs.append(torch.tensor(samples[2]))
                 timeseries.append(torch.tensor(samples[3]))
-                opt_labels.append(torch.tensor(eval(samples[5])))
             
 
             logs = torch.stack(logs, dim=0)
@@ -39,10 +37,6 @@ class Tensor_Opt_modal_dataset(data.Dataset):
             self.timeseries_train_mean = timeseries.mean(dim=[0, 2])
             self.timeseries_train_std = timeseries.std(dim=[0, 2])
 
-            opt_labels = torch.stack(opt_labels, dim=0)
-            self.opt_labels_train_mean = opt_labels.mean(dim=0)
-            self.opt_labels_train_std = opt_labels.std(dim=0)
-
         else:
             querys = df["query"].values.tolist()
 
@@ -50,8 +44,6 @@ class Tensor_Opt_modal_dataset(data.Dataset):
             self.logs_train_std = train_dataset.logs_train_std
             self.timeseries_train_mean = train_dataset.timeseries_train_mean
             self.timeseries_train_std = train_dataset.timeseries_train_std
-            self.opt_labels_train_mean = train_dataset.opt_labels_train_mean
-            self.opt_labels_train_std = train_dataset.opt_labels_train_std
 
         for i, samples in enumerate(samples_list):
             sam = {
@@ -60,10 +52,8 @@ class Tensor_Opt_modal_dataset(data.Dataset):
                    "log": (torch.tensor(samples[2]) - self.logs_train_mean) / (self.logs_train_std + 1e-6),
                     "timeseries": (torch.tensor(samples[3]) - self.timeseries_train_mean.unsqueeze(1)) / (self.timeseries_train_std.unsqueeze(1) + 1e-6), 
                     "multilabel": torch.tensor(eval(samples[4])), 
-                    "opt_label": (torch.tensor(eval(samples[5]))  - self.opt_labels_train_mean) / (self.opt_labels_train_std + 1e-6),
-                    "duration": samples[6],
-                    "ori_opt_label": (torch.tensor(eval(samples[5]))  - self.opt_labels_train_mean) / (self.opt_labels_train_std + 1e-6),
-                    "indexes": samples[7]
+                    "duration": samples[5],
+                    # "indexes": samples[6]
             }
             samples_data.append(sam)
 

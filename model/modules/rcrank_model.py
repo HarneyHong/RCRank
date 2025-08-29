@@ -1,8 +1,16 @@
-import torch.nn as nn
-import torch
+import os
+import sys
 
-from pretrain.pretrain import Alignment
-from model.modules.LogModel.log_model import LogModel
+# Add RCRank root to Python path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+rcrank_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+if rcrank_root not in sys.path:
+    sys.path.append(rcrank_root)
+
+import torch
+import torch.nn as nn
+from RCRank.pretrain.pretrain import Alignment
+from RCRank.model.modules.LogModel.log_model import LogModel
 
 
 class Predict(nn.Module):
@@ -31,7 +39,8 @@ class GateComDiffPretrainModel(nn.Module):
         self.time_tran_emb = nn.Linear(emb_dim * 7, emb_dim)
         # 融合三个模态
 
-        self.n_label = 9
+        # self.n_label = 9
+        self.n_label = 4
         self.weight = weight
         self.common_cross_model = cross_model
         self.rootcause_cross_model = rootcause_cross_model
@@ -80,8 +89,10 @@ class GateComDiffPretrainModel(nn.Module):
         self.init_params()
         self.device = device
         self.alignmentModel = Alignment(device=device)
-
-        self.alignmentModel.load_state_dict(torch.load('pretrain/pretrain.pth'),strict=False) 
+        
+        # # Load pretrained model with absolute path
+        # pretrain_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'pretrain/pretrain.pth')
+        # self.alignmentModel.load_state_dict(torch.load(pretrain_path, map_location=device), strict=False)
         
         self.sql_model = self.alignmentModel.sql_model
         self.log_model = self.alignmentModel.log_model
@@ -98,8 +109,7 @@ class GateComDiffPretrainModel(nn.Module):
             sql_emb = self.sql_model(**sql)
             
         plan_emb = self.plan_model(plan)
-        sql_emb = sql_emb.last_hidden_state
-                
+        sql_emb = sql_emb.last_hidden_state   
         
         log_emb = self.log_model(log)
         log_emb = torch.relu(log_emb)
@@ -108,6 +118,9 @@ class GateComDiffPretrainModel(nn.Module):
         time_emb = time.unsqueeze(1)
         time_emb = self.time_model(time_emb)
         time_emb = time_emb.squeeze()
+        
+        # Reshape time_emb to match the expected dimensions [batch_size, 1, hidden_dim]
+        time_emb = time_emb.unsqueeze(0).unsqueeze(1)     
 
         sql_emb = self.sql_last_emb(sql_emb)
         
@@ -143,5 +156,25 @@ class GateComDiffPretrainModel(nn.Module):
                 pred_label_output = torch.cat([pred_label_output, pred_label], dim=-1)
                 
         return pred_label_output, pred_opt_output
+    
+    def get_embedding(self, sql, plan, time, log):
+        """
+        获取融合后的embedding向量，不做分类预测，仅返回embedding。
+        """
+        with torch.no_grad():
+            sql_emb = self.sql_model(**sql)
+            plan_emb = self.plan_model(plan)
+            sql_emb = sql_emb.last_hidden_state
+            log_emb = self.log_model(log)
+            log_emb = torch.relu(log_emb)
+            log_emb = self.log_bn(log_emb)
+            time_emb = time.unsqueeze(1)
+            time_emb = self.time_model(time_emb)
+            time_emb = time_emb.squeeze()
+            time_emb = time_emb.unsqueeze(0).unsqueeze(1)
+            sql_emb = self.sql_last_emb(sql_emb)
+            # 融合embedding
+            common_emb = self.common_cross_model(sql_emb, plan_emb, log_emb, time_emb, None, None).mean(dim=1)
+            return common_emb
     
     

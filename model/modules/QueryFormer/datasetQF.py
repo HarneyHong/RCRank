@@ -169,11 +169,11 @@ def node2feature(node, encoding, hist_file, table_sample):
     # type, join, filter123, mask123
     # 1, 1, 3x3 (9), 3
     num_filter = len(node.filterDict['colId'])
-    pad = np.zeros((2,20-num_filter))
+    pad = np.zeros((2,30-num_filter))
     filts = np.array(list(node.filterDict.values())) #cols, ops, vals
     ## 3x3 -> 9, get back with reshape 3,3
     filts = np.concatenate((filts, pad), axis=1).flatten() 
-    mask = np.zeros(20)
+    mask = np.zeros(30)
     mask[:num_filter] = 1
     type_join = np.array([node.typeId, node.join])
     

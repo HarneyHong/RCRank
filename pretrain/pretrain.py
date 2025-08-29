@@ -5,8 +5,13 @@ import math
 import torch.optim as optim
 import sys
 import os
-current_directory = os.getcwd()
-sys.path.append(current_directory)
+
+# Add RCRank root to Python path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+rcrank_root = os.path.dirname(current_dir)
+if rcrank_root not in sys.path:
+    sys.path.append(rcrank_root)
+
 from model.modules.LogModel.log_model import LogModel
 import torch.nn as nn
 import torch
@@ -18,8 +23,7 @@ from transformers import BertTokenizer, BertModel
 import pickle
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
-from utils.plan_encoding import PlanEncoder
-import os
+from RCRank.utils.plan_encoding import PlanEncoder
 
 class Encoding:
     def __init__(self, column_min_max_vals, 
@@ -109,11 +113,11 @@ class Encoding:
     
 def node2feature(node, encoding, hist_file, table_sample):
     num_filter = len(node.filterDict['colId'])
-    pad = np.zeros((2,20-num_filter))
+    pad = np.zeros((2,30-num_filter))
     filts = np.array(list(node.filterDict.values())) #cols, ops, vals
     ## 3x3 -> 9, get back with reshape 3,3
     filts = np.concatenate((filts, pad), axis=1).flatten() 
-    mask = np.zeros(20)
+    mask = np.zeros(30)
     mask[:num_filter] = 1
     type_join = np.array([node.typeId, node.join])
 
@@ -162,11 +166,11 @@ class Alignment(nn.Module):
     def __init__(self,device,n_class=0):
         super(Alignment, self).__init__()
         self.flatten = nn.Flatten()
-        self.plan_model = QueryFormer(pred_hid=32)
-        self.sql_model = BertModel.from_pretrained("./bert-base-uncased")
+        self.plan_model = QueryFormer(pred_hid=32, input_size=1097)
+        self.sql_model = BertModel.from_pretrained("/root/DREAM/src/agent/plan/RCRank/bert-base-uncased")
         encoder_layer = nn.TransformerEncoderLayer(d_model=768, nhead=8, dim_feedforward=2048, dropout=0.1, batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=1)
-        self.tokenizer = BertTokenizer.from_pretrained("./bert-base-uncased")
+        self.tokenizer = BertTokenizer.from_pretrained("/root/DREAM/src/agent/plan/RCRank/bert-base-uncased")
         self.log_model = LogModel(input_dim=13, hidden_dim = 64, output_dim = 32)
 
         self.concat_dim_mask_plan = 3*768
@@ -343,9 +347,9 @@ if __name__ == "__main__":
     
     
     
-    device = 'cuda:0'
-    tokenizer = BertTokenizer.from_pretrained("./bert-base-uncased")
-    bert = BertModel.from_pretrained("./bert-base-uncased").to(device)
+    device = 'cpu'
+    tokenizer = BertTokenizer.from_pretrained("/root/DREAM/src/agent/plan/RCRank/bert-base-uncased")
+    bert = BertModel.from_pretrained("/root/DREAM/src/agent/plan/RCRank/bert-base-uncased").to(device)
     dataset = PretrainDataset('pretrain/pretrain_data.pkl',tokenizer,bert,device)
 
     encoding = tokenizer(json.dumps(dataset.encoding.idx2table), return_tensors="pt", padding=True, truncation=True, max_length=512).to(device)

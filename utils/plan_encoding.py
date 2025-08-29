@@ -16,11 +16,11 @@ def node2feature(node, encoding, hist_file, table_sample):
     # type, join, filter123, mask123
     # 1, 1, 3x3 (9), 3
     num_filter = len(node.filterDict['colId'])
-    pad = np.zeros((2,20-num_filter))
+    pad = np.zeros((2,30-num_filter))
     filts = np.array(list(node.filterDict.values())) #cols, ops, vals
     ## 3x3 -> 9, get back with reshape 3,3
     filts = np.concatenate((filts, pad), axis=1).flatten() 
-    mask = np.zeros(20)
+    mask = np.zeros(30)
     mask[:num_filter] = 1
     type_join = np.array([node.typeId, node.join])
     
@@ -33,11 +33,11 @@ def node2feature(node, encoding, hist_file, table_sample):
     # np.concatenate((type_join, filts, table, sample, global_plan_cost))
     # type_join, filts, mask, table, sample, global_plan_cost, local_plan_cost
     # 2          60      30     1     1000        4                  4
-    # (1,1,40,20,1001, 4)
+    # (1,1,40,30,1001, 4)
     # return np.concatenate((type_join, filts, mask, table, sample, global_plan_cost, local_plan_cost), dtype=np.float64)
     return np.concatenate((type_join, filts,mask, table, sample, global_plan_cost), dtype=np.float64)
     # typeId, joinId, filtersId, filtersMask, table_sample, cost 
-    # 1          1      40            20         1001         4
+    # 1          1      40            30         1001         4
 def f(s):
   if '    ' in s and '\n' in s:
     return s.split('    ')[1].split('\n')[0]
@@ -57,12 +57,13 @@ class PlanEncoder():
         df = df[df["plan_json"].str.count("\'Plans\'") < 500]
  
         tmp = []
-        for i in tqdm(range(df.shape[0])):
+        # for i in tqdm(range(df.shape[0])):
+        for i in range(df.shape[0]):
             # print("plan", df["plan_json"].iloc[i])
             # node = json.loads(df["plan_json"].iloc[i])['Plan']
             s = df["plan_json"].iloc[i]
             if '\"Plan\"' in s:
-                node = json.loads(s)['Plan']
+                node = json.loads(s)[0][0]['Plan']
             else:
                 node = ast.literal_eval(f(df["plan_json"].iloc[i]))[0]['Plan']
             a = self.js_node2dict(i, node)
@@ -76,22 +77,7 @@ class PlanEncoder():
         
         df = df[df['json_plan_tensor']!= np.nan]
         self.df=df
-        print(len(df))
-        # def get_plan(x):
-        #     # node = json.loads(x["plan_json"])['Plan']
-            
-        #     t = re.search(r'\[(.*)\]', x["plan_json"].replace('[\'','[\"').replace('\']','\"]').replace(', \'',', \"').replace('\'}','\"}').replace('{\'','{\"').replace('\': ','\": ').replace(': \'',': \"').replace('\', ','\", ').replace('False','false').replace('True','true').replace('\"0\'','\'0\'').replace('\", 0','\', 0'), re.DOTALL).group(0) 
-        #     node = json.loads(t)[0]['Plan']
-            
-        #     # print(i)
-        #     a = self.js_node2dict(i, node)
-        #     # df.loc[i, "json_plan_tensor"] = a
-        #     x["json_plan_tensor"] = a
-        #     return a
-        # df["json_plan_tensor"] = df.apply(lambda x: get_plan(x), axis=1)
-
-        # df.to_pickle("test111.pickle")
-
+        # print(len(df))
 
     
     def js_node2dict(self, idx, node):
@@ -149,7 +135,7 @@ class PlanEncoder():
 
         return {
             # 'features' : torch.FloatTensor(features),
-            'features' : torch.tensor(features, dtype=torch.float64),
+            'features' : torch.tensor(np.array(features), dtype=torch.float64),
             'heights' : torch.LongTensor(heights),
             'adjacency_list' : torch.LongTensor(np.array(adj_list)),
           

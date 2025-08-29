@@ -95,10 +95,12 @@ class MultiHeadedAttention(nn.Module):
         head_count = self.head_count
 
         def shape(x):
+            batch_size = x.size(0)
             return x.view(batch_size, -1, head_count, dim_per_head) \
                 .transpose(1, 2)
 
         def unshape(x):
+            batch_size = x.size(0)
             return x.transpose(1, 2).contiguous() \
                 .view(batch_size, -1, head_count * dim_per_head)
 
