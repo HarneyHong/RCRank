@@ -7,30 +7,36 @@ import pandas as pd
 import json
 from transformers import BertTokenizer
 
-from utils.data_tensor import Tensor_Opt_modal_dataset
-from model.modules.QueryFormer.utils import Encoding
+from .data_tensor import Tensor_Opt_modal_dataset
+from ..model.modules.QueryFormer.utils import Encoding
 from .plan_encoding import PlanEncoder
+import os
 
 def json_phrase(s):
     return json.loads(s)
 def load_dataset_valid(data_path, batch_size = 8, device="cpu"):
     print("load dataset ...")
-    tokenizer = BertTokenizer.from_pretrained("./bert-base-uncased")
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    bert_path = os.path.normpath(os.path.join(current_dir, "..", "bert-base-uncased"))
+    tokenizer = BertTokenizer.from_pretrained(bert_path)
 
     path = data_path
     
     df = pd.read_csv(path)
-    if path == "data/slow_sql_data_gen.csv":
+    # 兼容含有 error 列的数据：过滤掉有错误的行
+    if 'error' in df.columns:
         df = df[df['error'].isna()]
     
     encoding = Encoding(None, {'NA': 0})
 
-    if path != "data/slow_sql_data_gen.csv":
-        df["log_all"] = df["log_all"].apply(json_phrase)
-        df["timeseries"] = df["timeseries"].apply(json_phrase)
-    else:
+    # 统一日志与时序列字段名，兼容 internal_metrics/external_metrics 或 log_all/timeseries
+    if 'internal_metrics' in df.columns and 'external_metrics' in df.columns:
         df["log_all"] = df["internal_metrics"].apply(json_phrase)
         df["timeseries"] = df["external_metrics"].apply(json_phrase)
+    else:
+        # 回退到原始字段名
+        df["log_all"] = df["log_all"].apply(json_phrase)
+        df["timeseries"] = df["timeseries"].apply(json_phrase)
 
     pe = PlanEncoder(df=df,encoding=encoding)
     df = pe.df
@@ -45,11 +51,17 @@ def load_dataset_valid(data_path, batch_size = 8, device="cpu"):
     df_test = df.iloc[train_length:train_length+test_length]
     df_valid = df.iloc[-valid_length:]
 
-    # 只保留multilabel，移除opt_label_rate
-    train_dataset = Tensor_Opt_modal_dataset(df_train[["query", "json_plan_tensor", "log_all", "timeseries", "multilabel", "duration"]], device=device, encoding=encoding, tokenizer=tokenizer)
-    test_dataset = Tensor_Opt_modal_dataset(df_test[["query", "json_plan_tensor", "log_all", "timeseries", "multilabel", "duration"]], device=device, encoding=encoding, tokenizer=tokenizer, train_dataset=train_dataset)
+    # 组装用于数据集的列，若存在 case_label 则一并传递
+    base_cols = ["query", "json_plan_tensor", "log_all", "timeseries", "multilabel", "duration"]
+    if 'case_label' in df_train.columns:
+        cols = base_cols + ["case_label"]
+    else:
+        cols = base_cols
+
+    train_dataset = Tensor_Opt_modal_dataset(df_train[cols], device=device, encoding=encoding, tokenizer=tokenizer)
+    test_dataset = Tensor_Opt_modal_dataset(df_test[cols], device=device, encoding=encoding, tokenizer=tokenizer, train_dataset=train_dataset)
     
-    valid_dataset = Tensor_Opt_modal_dataset(df_valid[["query", "json_plan_tensor", "log_all", "timeseries", "multilabel", "duration"]], device=device, encoding=encoding, tokenizer=tokenizer, train_dataset=train_dataset)
+    valid_dataset = Tensor_Opt_modal_dataset(df_valid[cols], device=device, encoding=encoding, tokenizer=tokenizer, train_dataset=train_dataset)
 
     print("load dataset over")
         
@@ -62,11 +74,16 @@ def load_dataset_valid(data_path, batch_size = 8, device="cpu"):
 
 
 def padding_plan(plan, max_len):
-    padding = torch.zeros(1, max_len - plan.shape[1], 768)
+    # padding = torch.zeros(1, max_len - plan.shape[1], 768)
+    batch_size, cur_len, feat_dim = plan.shape
+    if cur_len >= max_len:
+        return plan[:, :max_len, :]
+    padding = torch.zeros(batch_size, max_len - cur_len, feat_dim, device=plan.device, dtype=plan.dtype)
     return torch.cat([plan, padding], dim=1)
 
 def collate_fn(batch):
     querys, plans, logs, timeseries, multilabels, durations = [], {}, [], [], [], []
+    case_labels = []
     plans_x, plans_attn_bias, plans_rel_pos, plans_heights = [], [], [], []
     max_len_plan = 0
     for sample in batch:
@@ -82,6 +99,8 @@ def collate_fn(batch):
         timeseries.append(sample["timeseries"])
         multilabels.append(sample["multilabel"])
         durations.append(sample["duration"])
+        # 兼容 case_label（若不存在则默认 positive）
+        case_labels.append(sample.get("case_label", "positive"))
     
     max_len_plan = 500
     for i in range(len(plans_x)):
@@ -96,6 +115,7 @@ def collate_fn(batch):
         "log": torch.stack(logs),
         "timeseries": torch.stack(timeseries),
         "multilabel": torch.stack(multilabels),
-        "duration": torch.tensor(durations)
+        "duration": torch.tensor(durations),
+        "case_label": case_labels,
     }
 
