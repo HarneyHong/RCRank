@@ -1,4 +1,5 @@
 import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -32,7 +33,9 @@ class PositionwiseFeedForward(nn.Module):
 
 class MultiHeadedAttention(nn.Module):
 
-    def __init__(self, head_count, model_dim, dropout=0.1, use_metrics=True, use_log=True):
+    def __init__(
+        self, head_count, model_dim, dropout=0.1, use_metrics=True, use_log=True
+    ):
         self.use_metrics = use_metrics
         self.use_log = use_log
         assert model_dim % head_count == 0
@@ -41,27 +44,20 @@ class MultiHeadedAttention(nn.Module):
 
         super(MultiHeadedAttention, self).__init__()
         self.head_count = head_count
-        self.linear_keys = nn.Linear(model_dim,
-                                     head_count * self.dim_per_head)
-        self.linear_values = nn.Linear(model_dim,
-                                       head_count * self.dim_per_head)
-        self.linear_query = nn.Linear(model_dim,
-                                      head_count * self.dim_per_head)
-        
-        self.linear_plan_keys = nn.Linear(model_dim,
-                                     head_count * self.dim_per_head)
-        self.linear_plan_values = nn.Linear(model_dim,
-                                       head_count * self.dim_per_head)
-        
-        self.linear_log_keys = nn.Linear(model_dim,
-                                     head_count * self.dim_per_head)
-        self.linear_log_values = nn.Linear(model_dim,
-                                       head_count * self.dim_per_head)
-        
-        self.linear_metrics_keys = nn.Linear(model_dim,
-                                     head_count * self.dim_per_head)
-        self.linear_metrics_values = nn.Linear(model_dim,
-                                       head_count * self.dim_per_head)
+        self.linear_keys = nn.Linear(model_dim, head_count * self.dim_per_head)
+        self.linear_values = nn.Linear(model_dim, head_count * self.dim_per_head)
+        self.linear_query = nn.Linear(model_dim, head_count * self.dim_per_head)
+
+        self.linear_plan_keys = nn.Linear(model_dim, head_count * self.dim_per_head)
+        self.linear_plan_values = nn.Linear(model_dim, head_count * self.dim_per_head)
+
+        self.linear_log_keys = nn.Linear(model_dim, head_count * self.dim_per_head)
+        self.linear_log_values = nn.Linear(model_dim, head_count * self.dim_per_head)
+
+        self.linear_metrics_keys = nn.Linear(model_dim, head_count * self.dim_per_head)
+        self.linear_metrics_values = nn.Linear(
+            model_dim, head_count * self.dim_per_head
+        )
 
         self.softmax = nn.Softmax(dim=-1)
         self.dropout_sql = nn.Dropout(dropout)
@@ -70,18 +66,34 @@ class MultiHeadedAttention(nn.Module):
         self.dropout_metrics = nn.Dropout(dropout)
 
         model_num = 4
-        if not self.use_metrics: model_num -= 1
-        if not self.use_log: model_num -= 1
+        if not self.use_metrics:
+            model_num -= 1
+        if not self.use_log:
+            model_num -= 1
         self.final_linear = nn.Linear(model_dim * model_num, model_dim)
 
-        self.edge_project = nn.Sequential(nn.Linear(model_dim, model_dim),
-                                          SSP(),
-                                          nn.Linear(model_dim, model_dim // 2))
-        self.edge_update = nn.Sequential(nn.Linear(model_dim * 2, model_dim),
-                                         SSP(),
-                                         nn.Linear(model_dim, model_dim))
+        self.edge_project = nn.Sequential(
+            nn.Linear(model_dim, model_dim), SSP(), nn.Linear(model_dim, model_dim // 2)
+        )
+        self.edge_update = nn.Sequential(
+            nn.Linear(model_dim * 2, model_dim), SSP(), nn.Linear(model_dim, model_dim)
+        )
 
-    def forward(self, sql, plan, log, metrics, sql_mask, plan_mask, mask=None, additional_mask=None, layer_cache=None, type=None, edge_feature=None, pair_indices=None):
+    def forward(
+        self,
+        sql,
+        plan,
+        log,
+        metrics,
+        sql_mask,
+        plan_mask,
+        mask=None,
+        additional_mask=None,
+        layer_cache=None,
+        type=None,
+        edge_feature=None,
+        pair_indices=None,
+    ):
 
         query = sql
         sql_key = sql
@@ -96,13 +108,15 @@ class MultiHeadedAttention(nn.Module):
 
         def shape(x):
             batch_size = x.size(0)
-            return x.view(batch_size, -1, head_count, dim_per_head) \
-                .transpose(1, 2)
+            return x.view(batch_size, -1, head_count, dim_per_head).transpose(1, 2)
 
         def unshape(x):
             batch_size = x.size(0)
-            return x.transpose(1, 2).contiguous() \
+            return (
+                x.transpose(1, 2)
+                .contiguous()
                 .view(batch_size, -1, head_count * dim_per_head)
+            )
 
         sql_key_projected = self.linear_keys(sql_key)
         sql_value_projected = self.linear_values(sql_value)
@@ -122,8 +136,9 @@ class MultiHeadedAttention(nn.Module):
 
         sql_query_shaped = query_shaped / math.sqrt(dim_per_head)
         scores = torch.matmul(sql_query_shaped, sql_key_shaped.transpose(2, 3))
-        top_score = scores.view(batch_size, scores.shape[1],
-                                query_len, sql_key_len)[:, 0, :, :].contiguous()
+        top_score = scores.view(batch_size, scores.shape[1], query_len, sql_key_len)[
+            :, 0, :, :
+        ].contiguous()
         attn = self.softmax(scores)
         drop_attn = self.dropout_sql(attn)
         context = torch.matmul(drop_attn, sql_value_shaped)
@@ -148,14 +163,12 @@ class MultiHeadedAttention(nn.Module):
 
             metrics_key_len = metrics_key_shaped.size(2)
 
-
             sql_query_shaped = query_shaped / math.sqrt(dim_per_head)
             scores = torch.matmul(sql_query_shaped, metrics_key_shaped.transpose(2, 3))
             attn = torch.sigmoid(scores)
             drop_attn = self.dropout_metrics(attn)
             context = torch.matmul(drop_attn, metrics_value_shaped)
             metrics_context = unshape(context)
-
 
         if self.use_log:
             log = log.unsqueeze(1)
@@ -169,7 +182,7 @@ class MultiHeadedAttention(nn.Module):
 
             sql_query_shaped = query_shaped / math.sqrt(dim_per_head)
             scores = torch.matmul(sql_query_shaped, log_key_shaped.transpose(2, 3))
-            attn = torch.sigmoid(scores) 
+            attn = torch.sigmoid(scores)
             drop_attn = self.dropout_log(attn)
             context = torch.matmul(drop_attn, log_value_shaped)
             log_context = unshape(context)
@@ -188,7 +201,6 @@ class MultiHeadedAttention(nn.Module):
 
 class LayerNorm(nn.Module):
 
-
     def __init__(self, features, eps=1e-6):
         super(LayerNorm, self).__init__()
         self.a_2 = nn.Parameter(torch.ones(features))
@@ -199,5 +211,3 @@ class LayerNorm(nn.Module):
         mean = x.mean(-1, keepdim=True)
         std = x.std(-1, keepdim=True)
         return self.a_2 * (x - mean) / (std + self.eps) + self.b_2
-
-

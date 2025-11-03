@@ -2,15 +2,14 @@ import torch
 from torch.utils import data
 
 
-from model.modules.QueryFormer.utils import *
-
-import json
-
 class Tensor_Opt_modal_dataset(data.Dataset):
-    '''
-        sample: [feature, label]
-    '''
-    def __init__(self, df, device, train=True, encoding=None, tokenizer=None, train_dataset=None):
+    """
+    sample: [feature, label]
+    """
+
+    def __init__(
+        self, df, device, train=True, encoding=None, tokenizer=None, train_dataset=None
+    ):
         super().__init__()
         self.encoding = encoding
         self.treeNodes = []
@@ -24,10 +23,9 @@ class Tensor_Opt_modal_dataset(data.Dataset):
             querys = []
             for i, samples in enumerate(samples_list):
                 querys.append(samples[0])
-                
+
                 logs.append(torch.tensor(samples[2]))
                 timeseries.append(torch.tensor(samples[3]))
-            
 
             logs = torch.stack(logs, dim=0)
             self.logs_train_mean = logs.mean(dim=0)
@@ -57,9 +55,17 @@ class Tensor_Opt_modal_dataset(data.Dataset):
             sam = {
                 "query": query_val,
                 "plan": plan_val,
-                "log": (torch.tensor(log_val) - self.logs_train_mean) / (self.logs_train_std + 1e-6),
-                "timeseries": (torch.tensor(ts_val) - self.timeseries_train_mean.unsqueeze(1)) / (self.timeseries_train_std.unsqueeze(1) + 1e-6),
-                "multilabel": torch.tensor(eval(multilabel_val)) if isinstance(multilabel_val, str) else torch.tensor(multilabel_val),
+                "log": (torch.tensor(log_val) - self.logs_train_mean)
+                / (self.logs_train_std + 1e-6),
+                "timeseries": (
+                    torch.tensor(ts_val) - self.timeseries_train_mean.unsqueeze(1)
+                )
+                / (self.timeseries_train_std.unsqueeze(1) + 1e-6),
+                "multilabel": (
+                    torch.tensor(eval(multilabel_val))
+                    if isinstance(multilabel_val, str)
+                    else torch.tensor(multilabel_val)
+                ),
                 "duration": duration_val,
                 "case_label": case_label_val,
             }
@@ -69,10 +75,8 @@ class Tensor_Opt_modal_dataset(data.Dataset):
         self.device = device
         self.train = train
 
-    def __getitem__(self,index):
+    def __getitem__(self, index):
         return self.samples[index]
 
     def __len__(self):
         return len(self.samples)
-    
-    

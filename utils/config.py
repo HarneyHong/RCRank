@@ -15,6 +15,7 @@ class TrainConfig:
     epoch = 50
     opt_threshold = 0.1
 
+
 class Args:
     embed_size = 64
     pred_hid = 128
@@ -22,12 +23,12 @@ class Args:
     head_size = 12
     n_layers = 8
     dropout = 0.1
-    device = 'cuda:0'
+    device = "cuda:0"
     input_emb = 1063
     use_sample = True
-    
+
+
 class ArgsPara:
     mul_label_weight = 1.0
     ts_weight = 1.0
     pred_type = "pred_opt"
-    
