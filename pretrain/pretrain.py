@@ -199,16 +199,15 @@ class Alignment(nn.Module):
         super(Alignment, self).__init__()
         self.flatten = nn.Flatten()
         self.plan_model = QueryFormer(pred_hid=32, input_size=1097)
-        self.sql_model = BertModel.from_pretrained(
-            "/root/DREAM/src/agent/plan/RCRank/bert-base-uncased"
-        )
+        # 使用相对路径，基于当前模块所在目录
+        bert_path = os.path.join(rcrank_root, "bert-base-uncased")
+        self.sql_model = BertModel.from_pretrained(bert_path)
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=768, nhead=8, dim_feedforward=2048, dropout=0.1, batch_first=True
         )
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=1)
-        self.tokenizer = BertTokenizer.from_pretrained(
-            "/root/DREAM/src/agent/plan/RCRank/bert-base-uncased"
-        )
+        # 使用相对路径，基于当前模块所在目录
+        self.tokenizer = BertTokenizer.from_pretrained(bert_path)
         self.log_model = LogModel(input_dim=13, hidden_dim=64, output_dim=32)
 
         self.concat_dim_mask_plan = 3 * 768
@@ -428,12 +427,10 @@ class PretrainDataset(Dataset):
 if __name__ == "__main__":
 
     device = "cpu"
-    tokenizer = BertTokenizer.from_pretrained(
-        "/root/DREAM/src/agent/plan/RCRank/bert-base-uncased"
-    )
-    bert = BertModel.from_pretrained(
-        "/root/DREAM/src/agent/plan/RCRank/bert-base-uncased"
-    ).to(device)
+    # 使用相对路径，基于当前模块所在目录
+    bert_path = os.path.join(rcrank_root, "bert-base-uncased")
+    tokenizer = BertTokenizer.from_pretrained(bert_path)
+    bert = BertModel.from_pretrained(bert_path).to(device)
     dataset = PretrainDataset("pretrain/pretrain_data.pkl", tokenizer, bert, device)
 
     encoding = tokenizer(
