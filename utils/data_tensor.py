@@ -51,6 +51,7 @@ class Tensor_Opt_modal_dataset(data.Dataset):
             multilabel_val = samples[4]
             duration_val = samples[5]
             case_label_val = samples[6] if len(samples) > 6 else "positive"
+            tuning_attempts_val = samples[7] if len(samples) > 7 else None
 
             sam = {
                 "query": query_val,
@@ -69,6 +70,8 @@ class Tensor_Opt_modal_dataset(data.Dataset):
                 "duration": duration_val,
                 "case_label": case_label_val,
             }
+            if tuning_attempts_val is not None:
+                sam["tuning_attempts"] = tuning_attempts_val
             samples_data.append(sam)
 
         self.samples = samples_data

@@ -51,7 +51,6 @@ def load_dataset_valid(data_path, batch_size=8, device="cpu"):
     df_test = df.iloc[train_length : train_length + test_length]
     df_valid = df.iloc[-valid_length:]
 
-    # 组装用于数据集的列，若存在 case_label 则一并传递
     base_cols = [
         "query",
         "json_plan_tensor",
@@ -60,10 +59,11 @@ def load_dataset_valid(data_path, batch_size=8, device="cpu"):
         "multilabel",
         "duration",
     ]
+    cols = base_cols.copy()
     if "case_label" in df_train.columns:
-        cols = base_cols + ["case_label"]
-    else:
-        cols = base_cols
+        cols.append("case_label")
+    if "tuning_attempts" in df_train.columns:
+        cols.append("tuning_attempts")
 
     train_dataset = Tensor_Opt_modal_dataset(
         df_train[cols], device=device, encoding=encoding, tokenizer=tokenizer
@@ -133,6 +133,7 @@ def padding_plan(plan, max_len):
 def collate_fn(batch):
     querys, plans, logs, timeseries, multilabels, durations = [], {}, [], [], [], []
     case_labels = []
+    tuning_attempts_list = []
     plans_x, plans_attn_bias, plans_rel_pos, plans_heights = [], [], [], []
     max_len_plan = 0
     for sample in batch:
@@ -151,6 +152,8 @@ def collate_fn(batch):
         durations.append(sample["duration"])
         # 兼容 case_label（若不存在则默认 positive）
         case_labels.append(sample.get("case_label", "positive"))
+        # 兼容 tuning_attempts（若不存在则为 None）
+        tuning_attempts_list.append(sample.get("tuning_attempts", None))
 
     max_len_plan = 500
     for i in range(len(plans_x)):
@@ -159,7 +162,8 @@ def collate_fn(batch):
     plans["attn_bias"] = torch.stack(plans_attn_bias)
     plans["rel_pos"] = torch.stack(plans_rel_pos)
     plans["heights"] = torch.stack(plans_heights)
-    return {
+    
+    result = {
         "query": querys,
         "plan": plans,
         "log": torch.stack(logs),
@@ -168,3 +172,7 @@ def collate_fn(batch):
         "duration": torch.tensor(durations),
         "case_label": case_labels,
     }
+    if all(ta is not None for ta in tuning_attempts_list):
+        result["tuning_attempts"] = tuning_attempts_list
+    
+    return result
