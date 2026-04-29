@@ -64,10 +64,10 @@ def load_dataset_valid(data_path, batch_size=8, device="cpu"):
         cols.append("case_label")
     if "tuning_attempts" in df_train.columns:
         cols.append("tuning_attempts")
+    if "selected_components" in df_train.columns:
+        cols.append("selected_components")
 
-    train_dataset = Tensor_Opt_modal_dataset(
-        df_train[cols], device=device, encoding=encoding, tokenizer=tokenizer
-    )
+    train_dataset = Tensor_Opt_modal_dataset(df_train[cols], device=device, encoding=encoding, tokenizer=tokenizer)
     test_dataset = Tensor_Opt_modal_dataset(
         df_test[cols],
         device=device,
@@ -124,9 +124,7 @@ def padding_plan(plan, max_len):
     batch_size, cur_len, feat_dim = plan.shape
     if cur_len >= max_len:
         return plan[:, :max_len, :]
-    padding = torch.zeros(
-        batch_size, max_len - cur_len, feat_dim, device=plan.device, dtype=plan.dtype
-    )
+    padding = torch.zeros(batch_size, max_len - cur_len, feat_dim, device=plan.device, dtype=plan.dtype)
     return torch.cat([plan, padding], dim=1)
 
 
@@ -134,6 +132,7 @@ def collate_fn(batch):
     querys, plans, logs, timeseries, multilabels, durations = [], {}, [], [], [], []
     case_labels = []
     tuning_attempts_list = []
+    selected_components_list = []
     plans_x, plans_attn_bias, plans_rel_pos, plans_heights = [], [], [], []
     max_len_plan = 0
     for sample in batch:
@@ -154,6 +153,7 @@ def collate_fn(batch):
         case_labels.append(sample.get("case_label", "positive"))
         # 兼容 tuning_attempts（若不存在则为 None）
         tuning_attempts_list.append(sample.get("tuning_attempts", None))
+        selected_components_list.append(sample.get("selected_components", None))
 
     max_len_plan = 500
     for i in range(len(plans_x)):
@@ -162,7 +162,7 @@ def collate_fn(batch):
     plans["attn_bias"] = torch.stack(plans_attn_bias)
     plans["rel_pos"] = torch.stack(plans_rel_pos)
     plans["heights"] = torch.stack(plans_heights)
-    
+
     result = {
         "query": querys,
         "plan": plans,
@@ -174,5 +174,7 @@ def collate_fn(batch):
     }
     if all(ta is not None for ta in tuning_attempts_list):
         result["tuning_attempts"] = tuning_attempts_list
-    
+    if all(sc is not None for sc in selected_components_list):
+        result["selected_components"] = selected_components_list
+
     return result

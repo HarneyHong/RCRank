@@ -7,9 +7,7 @@ class Tensor_Opt_modal_dataset(data.Dataset):
     sample: [feature, label]
     """
 
-    def __init__(
-        self, df, device, train=True, encoding=None, tokenizer=None, train_dataset=None
-    ):
+    def __init__(self, df, device, train=True, encoding=None, tokenizer=None, train_dataset=None):
         super().__init__()
         self.encoding = encoding
         self.treeNodes = []
@@ -52,15 +50,13 @@ class Tensor_Opt_modal_dataset(data.Dataset):
             duration_val = samples[5]
             case_label_val = samples[6] if len(samples) > 6 else "positive"
             tuning_attempts_val = samples[7] if len(samples) > 7 else None
+            selected_components_val = samples[8] if len(samples) > 8 else None
 
             sam = {
                 "query": query_val,
                 "plan": plan_val,
-                "log": (torch.tensor(log_val) - self.logs_train_mean)
-                / (self.logs_train_std + 1e-6),
-                "timeseries": (
-                    torch.tensor(ts_val) - self.timeseries_train_mean.unsqueeze(1)
-                )
+                "log": (torch.tensor(log_val) - self.logs_train_mean) / (self.logs_train_std + 1e-6),
+                "timeseries": (torch.tensor(ts_val) - self.timeseries_train_mean.unsqueeze(1))
                 / (self.timeseries_train_std.unsqueeze(1) + 1e-6),
                 "multilabel": (
                     torch.tensor(eval(multilabel_val))
@@ -72,6 +68,8 @@ class Tensor_Opt_modal_dataset(data.Dataset):
             }
             if tuning_attempts_val is not None:
                 sam["tuning_attempts"] = tuning_attempts_val
+            if selected_components_val is not None:
+                sam["selected_components"] = selected_components_val
             samples_data.append(sam)
 
         self.samples = samples_data
